@@ -33,17 +33,47 @@ const StoryPage: FC = () => {
   }, [narrative, preferences, historyText, setNarrative]);
 
   return (
-    <div style={{ padding: "2rem" }}>
-      <h1>生成的故事</h1>
-      {narrative ? (
-        <div style={{ marginBottom: "1rem", padding: "1rem", border: "1px solid #ddd" }}>
-          <p>{narrative}</p>
-        </div>
-      ) : (
-        <p>正在生成故事……</p>
-      )}
-      <button onClick={() => router.push("/reflection")} style={{ padding: "0.5rem 1rem" }}>
-        下一步：情感反思
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      minHeight: "100vh",
+      background: "linear-gradient(to bottom, #FFD1DC, #FFF5EE)",
+      fontFamily: "'Quicksand', sans-serif",
+      textAlign: "center",
+    }}>
+      <h1 style={{ color: "#6A5ACD", marginBottom: "1rem" }}>📖 你的疗愈故事 ✨</h1>
+
+      <div style={{
+        width: "80%",
+        maxWidth: "600px",
+        background: "rgba(255, 255, 255, 0.9)",
+        borderRadius: "16px",
+        padding: "1.5rem",
+        boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.1)",
+        marginBottom: "1rem",
+        animation: "fadeIn 1s ease-in-out",
+      }}>
+        {narrative ? (
+          <p style={{ color: "#555", lineHeight: "1.8" }}>{narrative}</p>
+        ) : (
+          <p style={{ color: "#999" }}>🌙 正在生成你的故事……请稍等 🌸</p>
+        )}
+      </div>
+
+      <button onClick={() => router.push("/reflection")} style={{
+        padding: "12px 20px",
+        borderRadius: "12px",
+        border: "none",
+        background: "#6A5ACD",
+        color: "#fff",
+        fontSize: "1rem",
+        cursor: "pointer",
+        transition: "background 0.3s",
+        boxShadow: "0px 2px 6px rgba(0, 0, 0, 0.2)",
+      }}>
+        继续 💭 进入情感反思 🌿
       </button>
     </div>
   );

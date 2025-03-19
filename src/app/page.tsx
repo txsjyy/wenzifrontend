@@ -42,28 +42,89 @@ const ChatPage: FC = () => {
   };
 
   return (
-    <div style={{ padding: "2rem" }}>
-      <h1>与 AI 聊天</h1>
-      <div style={{ border: "1px solid #ccc", padding: "1rem", height: "300px", overflowY: "scroll", marginBottom: "1rem" }}>
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      minHeight: "100vh",
+      background: "linear-gradient(to bottom, #FFEBCD, #FFF5EE)",
+      fontFamily: "'Quicksand', sans-serif",
+    }}>
+      <h1 style={{ color: "#6A5ACD", marginBottom: "1rem" }}>🌿 与 AI 聊天 🌸</h1>
+      <div style={{
+        width: "80%",
+        maxWidth: "500px",
+        background: "rgba(255, 255, 255, 0.9)",
+        borderRadius: "16px",
+        padding: "1rem",
+        boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.1)",
+        overflowY: "scroll",
+        height: "400px",
+      }}>
         {chatHistory.map((msg, idx) => (
-          <div key={idx} style={{ margin: "0.5rem 0" }}>
-            <strong>{msg.sender}:</strong> {msg.text}
+          <div key={idx} style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: msg.sender === "用户" ? "flex-end" : "flex-start",
+            marginBottom: "0.5rem",
+          }}>
+            <span style={{
+              background: msg.sender === "用户" ? "#FFB6C1" : "#E6E6FA",
+              padding: "8px 12px",
+              borderRadius: "12px",
+              maxWidth: "80%",
+              boxShadow: "0px 2px 5px rgba(0, 0, 0, 0.1)",
+            }}>
+              <strong>{msg.sender}:</strong> {msg.text}
+            </span>
           </div>
         ))}
       </div>
-      <input
-        type="text"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        placeholder="请输入消息"
-        style={{ width: "300px", padding: "0.5rem" }}
-      />
-      <button onClick={sendChat} style={{ marginLeft: "1rem", padding: "0.5rem 1rem" }}>
-        发送
-      </button>
-      <br />
-      <button onClick={() => router.push("/design")} style={{ marginTop: "1rem", padding: "0.5rem 1rem" }}>
-        下一步：获取设计建议
+      <div style={{
+        marginTop: "1rem",
+        display: "flex",
+        alignItems: "center",
+        width: "80%",
+        maxWidth: "500px",
+      }}>
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="请输入消息..."
+          style={{
+            flex: 1,
+            padding: "10px",
+            borderRadius: "12px",
+            border: "1px solid #ddd",
+            boxShadow: "inset 0px 2px 4px rgba(0, 0, 0, 0.1)",
+          }}
+        />
+        <button onClick={sendChat} style={{
+          marginLeft: "1rem",
+          padding: "10px 16px",
+          borderRadius: "12px",
+          border: "none",
+          background: "#6A5ACD",
+          color: "#fff",
+          cursor: "pointer",
+          transition: "background 0.3s",
+        }}>
+          发送
+        </button>
+      </div>
+      <button onClick={() => router.push("/design")} style={{
+        marginTop: "1rem",
+        padding: "10px 16px",
+        borderRadius: "12px",
+        border: "none",
+        background: "#FFB6C1",
+        color: "#fff",
+        cursor: "pointer",
+        transition: "background 0.3s",
+      }}>
+        下一步：获取设计建议 💡
       </button>
     </div>
   );

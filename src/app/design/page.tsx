@@ -40,54 +40,111 @@ const DesignPage: FC = () => {
   };
 
   return (
-    <div style={{ padding: "2rem" }}>
-      <h1>设计建议</h1>
-      {designAdvice ? (
-        <div style={{ marginBottom: "1rem", padding: "1rem", border: "1px solid #ddd" }}>
-          <h3>AI 建议：</h3>
-          <p>{designAdvice}</p>
-        </div>
-      ) : (
-        <p>正在加载设计建议……</p>
-      )}
-      <div style={{ marginBottom: "1rem" }}>
-        <label>
-          创作类型：{" "}
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      minHeight: "100vh",
+      background: "linear-gradient(to bottom, #FFEBCD, #FFF5EE)",
+      fontFamily: "'Quicksand', sans-serif",
+    }}>
+      <h1 style={{ color: "#6A5ACD", marginBottom: "1rem" }}>🌸 设计建议 🌿</h1>
+
+      <div style={{
+        width: "80%",
+        maxWidth: "600px",
+        background: "rgba(255, 255, 255, 0.9)",
+        borderRadius: "16px",
+        padding: "1.5rem",
+        boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.1)",
+        marginBottom: "1rem",
+      }}>
+        <h3 style={{ color: "#6A5ACD", marginBottom: "0.5rem" }}>✨ AI 建议：</h3>
+        {designAdvice ? (
+          <p style={{ color: "#555", fontStyle: "italic", lineHeight: "1.6" }}>{designAdvice}</p>
+        ) : (
+          <p style={{ color: "#999" }}>正在加载设计建议……</p>
+        )}
+      </div>
+
+      <div style={{
+        width: "80%",
+        maxWidth: "500px",
+        background: "rgba(255, 255, 255, 0.9)",
+        borderRadius: "16px",
+        padding: "1.5rem",
+        boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.1)",
+      }}>
+        <label style={{ display: "block", marginBottom: "1rem" }}>
+          <strong style={{ color: "#6A5ACD" }}>🌷 创作类型：</strong>
           <input
             type="text"
             value={storyType}
             onChange={(e) => setStoryType(e.target.value)}
-            style={{ marginLeft: "0.5rem" }}
+            style={{
+              width: "100%",
+              padding: "10px",
+              borderRadius: "12px",
+              border: "1px solid #ddd",
+              boxShadow: "inset 0px 2px 4px rgba(0, 0, 0, 0.1)",
+              marginTop: "5px",
+            }}
           />
         </label>
-      </div>
-      <div style={{ marginBottom: "1rem" }}>
-        <label>
-          疗愈模式：{" "}
+
+        <label style={{ display: "block", marginBottom: "1rem" }}>
+          <strong style={{ color: "#6A5ACD" }}>🌿 疗愈模式：</strong>
           <input
             type="text"
             value={mode}
             onChange={(e) => setMode(e.target.value)}
-            style={{ marginLeft: "0.5rem" }}
+            style={{
+              width: "100%",
+              padding: "10px",
+              borderRadius: "12px",
+              border: "1px solid #ddd",
+              boxShadow: "inset 0px 2px 4px rgba(0, 0, 0, 0.1)",
+              marginTop: "5px",
+            }}
           />
         </label>
-      </div>
-      <div style={{ marginBottom: "1rem" }}>
-        <label>
-          风格：{" "}
+
+        <label style={{ display: "block", marginBottom: "1rem" }}>
+          <strong style={{ color: "#6A5ACD" }}>🌸 风格：</strong>
           <input
             type="text"
             value={style}
             onChange={(e) => setStyle(e.target.value)}
-            style={{ marginLeft: "0.5rem" }}
+            style={{
+              width: "100%",
+              padding: "10px",
+              borderRadius: "12px",
+              border: "1px solid #ddd",
+              boxShadow: "inset 0px 2px 4px rgba(0, 0, 0, 0.1)",
+              marginTop: "5px",
+            }}
           />
         </label>
       </div>
-      <button onClick={handleNext} style={{ padding: "0.5rem 1rem" }}>
-        下一步：生成故事
+
+      <button onClick={handleNext} style={{
+        marginTop: "1.5rem",
+        padding: "12px 20px",
+        borderRadius: "12px",
+        border: "none",
+        background: "#6A5ACD",
+        color: "#fff",
+        fontSize: "1rem",
+        cursor: "pointer",
+        transition: "background 0.3s",
+        boxShadow: "0px 2px 6px rgba(0, 0, 0, 0.2)",
+      }}>
+        继续 ✨ 生成故事 📖
       </button>
     </div>
   );
 };
+
 
 export default DesignPage;
