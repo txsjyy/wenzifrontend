@@ -12,6 +12,8 @@ const DesignPage: FC = () => {
   const [storyType, setStoryType] = useState<string>(preferences.story_type);
   const [mode, setMode] = useState<string>(preferences.mode);
   const [style, setStyle] = useState<string>(preferences.style);
+  const [errorMessage, setErrorMessage] = useState<string>("");
+
   const router = useRouter();
 
   const historyText = chatHistory.map(msg => `${msg.sender}: ${msg.text}`).join("\n");
@@ -34,6 +36,12 @@ const DesignPage: FC = () => {
   }, [designAdvice, historyText, setDesignAdvice]);
 
   const handleNext = () => {
+    if (!storyType.trim() || !mode.trim() || !style.trim()) {
+      setErrorMessage("请完整填写所有字段后再继续 💡");
+      return;
+    }
+  
+    setErrorMessage("");
     // 将偏好设置保存到上下文中
     setPreferences({ story_type: storyType, mode: mode, style: style });
     router.push("/story");
@@ -62,7 +70,17 @@ const DesignPage: FC = () => {
       }}>
         <h3 style={{ color: "#6A5ACD", marginBottom: "0.5rem" }}>✨ AI 建议：</h3>
         {designAdvice ? (
-          <p style={{ color: "#555", fontStyle: "italic", lineHeight: "1.6" }}>{designAdvice}</p>
+          <pre style={{
+            color: "#555",
+            fontStyle: "italic",
+            lineHeight: "1.6",
+            whiteSpace: "pre-wrap", // preserves line breaks + allows wrapping
+            wordBreak: "break-word", // break long words if necessary
+            fontFamily: "'Quicksand', sans-serif",
+            margin: 0
+          }}>
+            {designAdvice}
+          </pre>
         ) : (
           <p style={{ color: "#999" }}>正在加载设计建议……</p>
         )}
@@ -92,7 +110,7 @@ const DesignPage: FC = () => {
             }}
           />
         </label>
-
+        
         <label style={{ display: "block", marginBottom: "1rem" }}>
           <strong style={{ color: "#6A5ACD" }}>🌿 疗愈模式：</strong>
           <input
@@ -126,6 +144,12 @@ const DesignPage: FC = () => {
             }}
           />
         </label>
+        {errorMessage && (
+  <p style={{ color: "#D9534F", marginTop: "1rem", fontWeight: "bold" }}>
+    {errorMessage}
+  </p>
+)}
+
       </div>
 
       <button onClick={handleNext} style={{

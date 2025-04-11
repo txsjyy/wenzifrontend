@@ -55,11 +55,22 @@ const StoryPage: FC = () => {
         marginBottom: "1rem",
         animation: "fadeIn 1s ease-in-out",
       }}>
-        {narrative ? (
-          <p style={{ color: "#555", lineHeight: "1.8" }}>{narrative}</p>
-        ) : (
-          <p style={{ color: "#999" }}>🌙 正在生成你的故事……请稍等 🌸</p>
-        )}
+      {narrative ? (
+        <pre style={{
+          color: "#555",
+          lineHeight: "1.8",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+          fontFamily: "'Quicksand', sans-serif",
+          textAlign: "left",
+          margin: 0
+        }}>
+          {narrative}
+        </pre>
+      ) : (
+        <p style={{ color: "#999" }}>🌙 正在生成你的故事……请稍等 🌸</p>
+      )}
+
       </div>
 
       <button onClick={() => router.push("/reflection")} style={{

@@ -92,7 +92,17 @@ const ReflectionPage: FC = () => {
           animation: "fadeIn 1s ease-in-out",
         }}>
           <h3 style={{ color: "#6A5ACD" }}>💫 AI 反思回应</h3>
-          <p style={{ color: "#555", lineHeight: "1.6" }}>{reflection}</p>
+          <pre style={{
+            color: "#555",
+            lineHeight: "1.6",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            fontFamily: "'Quicksand', sans-serif",
+            textAlign: "left",
+            margin: 0
+          }}>
+            {reflection}
+          </pre>
         </div>
       )}
 

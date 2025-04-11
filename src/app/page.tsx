@@ -12,6 +12,10 @@ const ChatPage: FC = () => {
   const { chatHistory, setChatHistory } = useContext(ChatContext)!;
   const [input, setInput] = useState<string>("");
   const router = useRouter();
+  const hasUserInput = chatHistory.some(msg => msg.sender === "用户");
+  const [errorMessage, setErrorMessage] = useState<string>("");
+
+
 
   // 页面加载时获取问候语
   useEffect(() => {
@@ -69,15 +73,21 @@ const ChatPage: FC = () => {
             alignItems: msg.sender === "用户" ? "flex-end" : "flex-start",
             marginBottom: "0.5rem",
           }}>
-            <span style={{
-              background: msg.sender === "用户" ? "#FFB6C1" : "#E6E6FA",
-              padding: "8px 12px",
-              borderRadius: "12px",
-              maxWidth: "80%",
-              boxShadow: "0px 2px 5px rgba(0, 0, 0, 0.1)",
-            }}>
-              <strong>{msg.sender}:</strong> {msg.text}
-            </span>
+          <pre style={{
+            background: msg.sender === "用户" ? "#FFB6C1" : "#E6E6FA",
+            padding: "8px 12px",
+            borderRadius: "12px",
+            maxWidth: "80%",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            fontFamily: "'Quicksand', sans-serif",
+            lineHeight: "1.5",
+            margin: 0,
+            boxShadow: "0px 2px 5px rgba(0, 0, 0, 0.1)",
+          }}>
+            <strong>{msg.sender}:</strong> {msg.text}
+          </pre>
+
           </div>
         ))}
       </div>
@@ -114,7 +124,15 @@ const ChatPage: FC = () => {
           发送
         </button>
       </div>
-      <button onClick={() => router.push("/design")} style={{
+      <button onClick={() => {
+  if (hasUserInput) {
+    setErrorMessage("");
+    router.push("/design");
+  } else {
+    setErrorMessage("请至少输入一条消息再继续 ✨");
+  }
+}}
+ style={{
         marginTop: "1rem",
         padding: "10px 16px",
         borderRadius: "12px",
@@ -126,7 +144,14 @@ const ChatPage: FC = () => {
       }}>
         下一步：获取设计建议 💡
       </button>
+      {errorMessage && (
+  <p style={{ color: "#D9534F", marginTop: "0.75rem", fontWeight: "bold" }}>
+    {errorMessage}
+  </p>
+)}
+
     </div>
+    
   );
 };
 
