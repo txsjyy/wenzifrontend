@@ -1,22 +1,27 @@
-// pages/story.tsx
 "use client";
 
-import { useEffect, useContext, FC } from "react";
+import { useEffect, useContext, useState } from "react";
 import { ChatContext } from "../context/ChatContext";
 import { useRouter } from "next/navigation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-const StoryPage: FC = () => {
-  const { chatHistory, preferences, narrative, setNarrative } = useContext(ChatContext)!;
+const MIN_REFLECTIONS = 10;
+
+const StoryReflectionPage = () => {
+  const { chatHistory, narrative, setNarrative } = useContext(ChatContext)!;
   const router = useRouter();
+
+  const [reflectionInput, setReflectionInput] = useState<string>("");
+  const [reflectionHistory, setReflectionHistory] = useState<{ sender: string; text: string }[]>([]);
+  const [isReflecting, setIsReflecting] = useState<boolean>(false);
 
   const historyText = chatHistory.map(msg => `${msg.sender}: ${msg.text}`).join("\n");
 
+  // 自动获取故事（如未生成）
   useEffect(() => {
     if (!narrative) {
       const payload = {
-        ...preferences,
         chat_history: historyText,
       };
       fetch(`${API_URL}/api/generate_narrative`, {
@@ -30,64 +35,220 @@ const StoryPage: FC = () => {
         })
         .catch(err => console.error("生成故事时出错：", err));
     }
-  }, [narrative, preferences, historyText, setNarrative]);
+  }, [narrative, historyText, setNarrative]);
+
+  // 统计用户反思次数
+  const userReflectionCount = reflectionHistory.filter(msg => msg.sender === "用户").length;
+  const remaining = Math.max(MIN_REFLECTIONS - userReflectionCount, 0);
+
+  // 发送反思内容
+  const handleSendReflection = async () => {
+    if (!reflectionInput.trim() || isReflecting) return;
+    const currentInput = reflectionInput;
+    setReflectionHistory(prev => [...prev, { sender: "用户", text: currentInput }]);
+    setReflectionInput("");
+    setIsReflecting(true);
+    try {
+      const res = await fetch(`${API_URL}/api/reflect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ history_chat: historyText, input: currentInput, story: narrative,  }),
+      });
+      const data = await res.json();
+      setReflectionHistory(prev => [...prev, { sender: "AI", text: data.reflection }]);
+    } catch (err) {
+      setReflectionHistory(prev => [...prev, { sender: "AI", text: "⚠️ 反思请求失败，请稍后重试。" }]);
+      console.error("发送反思时出错：", err);
+    } finally {
+      setIsReflecting(false);
+    }
+  };
 
   return (
     <div style={{
       display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
+      flexDirection: "row",
       minHeight: "100vh",
-      background: "linear-gradient(to bottom, #FFD1DC, #FFF5EE)",
+      background: "linear-gradient(to bottom right, #FFD1DC 70%, #D8BFD8 100%)",
       fontFamily: "'Quicksand', sans-serif",
-      textAlign: "center",
     }}>
-      <h1 style={{ color: "#6A5ACD", marginBottom: "1rem" }}>📖 你的疗愈故事 ✨</h1>
-
+      {/* 左侧：故事展示 */}
       <div style={{
-        width: "80%",
-        maxWidth: "600px",
-        background: "rgba(255, 255, 255, 0.9)",
-        borderRadius: "16px",
-        padding: "1.5rem",
-        boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.1)",
-        marginBottom: "1rem",
-        animation: "fadeIn 1s ease-in-out",
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRight: "2px solid #E6E6FA",
+        background: "rgba(255,255,255,0.85)",
+        padding: "2rem 1.5rem",
       }}>
-      {narrative ? (
-        <pre style={{
-          color: "#555",
-          lineHeight: "1.8",
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-          fontFamily: "'Quicksand', sans-serif",
-          textAlign: "left",
-          margin: 0
+        <h1 style={{ color: "#6A5ACD", marginBottom: "1rem" }}>📖 你的疗愈故事 ✨</h1>
+        <div style={{
+          width: "100%",
+          maxWidth: "520px",
+          minHeight: "350px",
+          background: "rgba(255,255,255,0.97)",
+          borderRadius: "16px",
+          padding: "1.5rem",
+          boxShadow: "0px 4px 10px rgba(0,0,0,0.1)",
+          marginBottom: "1rem",
+          animation: "fadeIn 1s ease-in-out",
+          overflowY: "auto"
         }}>
-          {narrative}
-        </pre>
-      ) : (
-        <p style={{ color: "#999" }}>🌙 正在生成你的故事……请稍等 🌸</p>
-      )}
-
+          {narrative ? (
+            <pre style={{
+              color: "#555",
+              lineHeight: "1.8",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              fontFamily: "'Quicksand', sans-serif",
+              textAlign: "left",
+              margin: 0
+            }}>
+              {narrative}
+            </pre>
+          ) : (
+            <p style={{ color: "#999" }}>🌙 正在生成你的故事……请稍等 🌸</p>
+          )}
+        </div>
       </div>
-
-      <button onClick={() => router.push("/reflection")} style={{
-        padding: "12px 20px",
-        borderRadius: "12px",
-        border: "none",
-        background: "#6A5ACD",
-        color: "#fff",
-        fontSize: "1rem",
-        cursor: "pointer",
-        transition: "background 0.3s",
-        boxShadow: "0px 2px 6px rgba(0, 0, 0, 0.2)",
+      {/* 右侧：反思多轮对话 */}
+      <div style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "rgba(245,245,255,0.8)",
+        padding: "2rem 1.5rem"
       }}>
-        继续 💭 进入情感反思 🌿
-      </button>
+        {/* Instruction */}
+        <div style={{
+          width: "100%",
+          maxWidth: "520px",
+          background: "rgba(255,255,255,0.97)",
+          borderRadius: "12px",
+          padding: "0.75rem 1.2rem",
+          marginBottom: "1rem",
+          boxShadow: "0px 2px 6px rgba(0,0,0,0.04)",
+          color: "#6A5ACD",
+          fontWeight: 500,
+          fontSize: "1.05rem"
+        }}>
+          你需要与AI反思交互至少 <strong style={{ color: "#FF69B4" }}>{MIN_REFLECTIONS}</strong> 次才能完成体验。<br />
+          当前已完成：<strong>{userReflectionCount}</strong> 次，还需<strong>{remaining}</strong>次。
+        </div>
+        <h1 style={{ color: "#6A5ACD", marginBottom: "1rem" }}>🌿 情感反思 💭</h1>
+        <div style={{
+          width: "100%",
+          maxWidth: "520px",
+          background: "rgba(255,255,255,0.97)",
+          borderRadius: "16px",
+          padding: "1.5rem",
+          boxShadow: "0px 4px 10px rgba(0,0,0,0.1)",
+          marginBottom: "1rem",
+          animation: "fadeIn 1s ease-in-out",
+          minHeight: "320px",
+          maxHeight: "430px",
+          overflowY: "auto"
+        }}>
+          {reflectionHistory.length === 0 && (
+            <div style={{ color: "#999", marginBottom: "1rem" }}>请在下方输入你的感受，与AI聊聊你的共鸣和思考。</div>
+          )}
+          {reflectionHistory.map((msg, idx) => (
+            <div key={idx} style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: msg.sender === "用户" ? "flex-end" : "flex-start",
+              marginBottom: "0.5rem",
+            }}>
+              <pre style={{
+                background: msg.sender === "用户" ? "#FFB6C1" : "#E6E6FA",
+                padding: "8px 12px",
+                borderRadius: "12px",
+                maxWidth: "80%",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                fontFamily: "'Quicksand', sans-serif",
+                lineHeight: "1.5",
+                margin: 0,
+                boxShadow: "0px 2px 5px rgba(0, 0, 0, 0.08)",
+              }}>
+                <strong>{msg.sender}:</strong> {msg.text}
+              </pre>
+            </div>
+          ))}
+          {isReflecting && (
+            <div style={{
+              color: "#6A5ACD",
+              fontStyle: "italic",
+              margin: "8px 0 0 0",
+            }}>AI正在思考中...</div>
+          )}
+        </div>
+        <div style={{
+          marginTop: "1rem",
+          display: "flex",
+          alignItems: "center",
+          width: "100%",
+          maxWidth: "520px",
+        }}>
+          <input
+            type="text"
+            value={reflectionInput}
+            onChange={(e) => setReflectionInput(e.target.value)}
+            placeholder="请分享你的感受..."
+            style={{
+              flex: 1,
+              padding: "10px",
+              borderRadius: "12px",
+              border: "1px solid #ddd",
+              boxShadow: "inset 0px 2px 4px rgba(0, 0, 0, 0.1)",
+            }}
+            onKeyDown={e => {
+              if (e.key === "Enter") handleSendReflection();
+            }}
+            disabled={isReflecting}
+          />
+          <button onClick={handleSendReflection} style={{
+            marginLeft: "1rem",
+            padding: "10px 16px",
+            borderRadius: "12px",
+            border: "none",
+            background: "#6A5ACD",
+            color: "#fff",
+            cursor: isReflecting ? "not-allowed" : "pointer",
+            opacity: isReflecting ? 0.7 : 1,
+            transition: "background 0.3s",
+          }}
+            disabled={isReflecting}
+          >
+            发送
+          </button>
+        </div>
+        <button
+          onClick={() => router.push("/")}
+          disabled={userReflectionCount < MIN_REFLECTIONS}
+          style={{
+            marginTop: "2rem",
+            padding: "12px 20px",
+            borderRadius: "12px",
+            border: "none",
+            background: userReflectionCount < MIN_REFLECTIONS ? "#ddd" : "#FFB6C1",
+            color: "#fff",
+            fontSize: "1rem",
+            cursor: userReflectionCount < MIN_REFLECTIONS ? "not-allowed" : "pointer",
+            opacity: userReflectionCount < MIN_REFLECTIONS ? 0.65 : 1,
+            transition: "background 0.3s",
+            boxShadow: "0px 2px 6px rgba(0, 0, 0, 0.2)",
+          }}
+        >
+          🔄 重新开始 🌱
+        </button>
+      </div>
     </div>
   );
 };
 
-export default StoryPage;
+export default StoryReflectionPage;

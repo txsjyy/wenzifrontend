@@ -1,30 +1,27 @@
-// pages.tsx
-
 "use client";
 
 import { useState, useEffect, useContext, FC } from "react";
-import { ChatContext, ChatMessage } from "./context/ChatContext";
-import { useRouter } from "next/navigation";
+import { ChatContext, ChatMessage } from "../context/ChatContext";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-const ChatPage: FC = () => {
+const SingleChatPage: FC = () => {
   const { chatHistory, setChatHistory } = useContext(ChatContext)!;
   const [input, setInput] = useState<string>("");
-  const router = useRouter();
-  const hasUserInput = chatHistory.some(msg => msg.sender === "用户");
-  const [errorMessage, setErrorMessage] = useState<string>("");
 
-
-
-  // 页面加载时获取问候语
+  // 页面加载时获取欢迎语（POST方式）
   useEffect(() => {
-    fetch(`${API_URL}/api/start`)
+    // 你可以自定义input，比如“你好”或空字符串等
+    fetch(`${API_URL}/api/pure_gpt4o_chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input: "请用中文欢迎用户并简单介绍你的身份和功能。" }),
+    })
       .then((res) => res.json())
       .then((data) => {
-        setChatHistory([{ sender: "系统", text: data.message }]);
+        setChatHistory([{ sender: "系统", text: data.response || data.message }]);
       })
-      .catch((err) => console.error("获取问候语时出错：", err));
+      .catch((err) => console.error("获取欢迎语时出错：", err));
   }, [setChatHistory]);
 
   // 发送聊天消息
@@ -32,7 +29,7 @@ const ChatPage: FC = () => {
     if (!input.trim()) return;
     setChatHistory((prev: ChatMessage[]) => [...prev, { sender: "用户", text: input }]);
     try {
-      const res = await fetch(`${API_URL}/api/chat`, {
+      const res = await fetch(`${API_URL}/api/pure_gpt4o_chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ input }),
@@ -40,6 +37,10 @@ const ChatPage: FC = () => {
       const data = await res.json();
       setChatHistory((prev: ChatMessage[]) => [...prev, { sender: "AI", text: data.response }]);
     } catch (error) {
+      setChatHistory((prev: ChatMessage[]) => [
+        ...prev,
+        { sender: "系统", text: "⚠️ 发送失败，请稍后重试。" },
+      ]);
       console.error("发送消息时出错：", error);
     }
     setInput("");
@@ -55,17 +56,17 @@ const ChatPage: FC = () => {
       background: "linear-gradient(to bottom, #FFEBCD, #FFF5EE)",
       fontFamily: "'Quicksand', sans-serif",
     }}>
-      <h1 style={{ color: "#6A5ACD", marginBottom: "1rem" }}>🌿 与 AI 聊天 🌸</h1>
+      <h1 style={{ color: "#6A5ACD", marginBottom: "1rem" }}>🌿 AI 心理疗愈对话 🌸</h1>
       <div style={{
         width: "96%",
         maxWidth: "800px",
-        background: "rgba(255, 255, 255, 0.9)",
-        borderRadius: "16px",
-        padding: "1rem",
-        boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.1)",
-        overflowY: "scroll",
+        background: "rgba(255, 255, 255, 0.95)",
+        borderRadius: "24px",
+        padding: "1.5rem",
+        boxShadow: "0px 6px 16px rgba(0,0,0,0.13)",
+        overflowY: "auto",
         height: "650px",
-        // marginBottom: "1rem",
+        marginBottom: "1rem",
       }}>
         {chatHistory.map((msg, idx) => (
           <div key={idx} style={{
@@ -74,21 +75,20 @@ const ChatPage: FC = () => {
             alignItems: msg.sender === "用户" ? "flex-end" : "flex-start",
             marginBottom: "0.5rem",
           }}>
-          <pre style={{
-            background: msg.sender === "用户" ? "#FFB6C1" : "#E6E6FA",
-            padding: "8px 12px",
-            borderRadius: "12px",
-            maxWidth: "80%",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            fontFamily: "'Quicksand', sans-serif",
-            lineHeight: "1.5",
-            margin: 0,
-            boxShadow: "0px 2px 5px rgba(0, 0, 0, 0.1)",
-          }}>
-            <strong>{msg.sender}:</strong> {msg.text}
-          </pre>
-
+            <pre style={{
+              background: msg.sender === "用户" ? "#FFB6C1" : "#E6E6FA",
+              padding: "8px 12px",
+              borderRadius: "12px",
+              maxWidth: "80%",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              fontFamily: "'Quicksand', sans-serif",
+              lineHeight: "1.5",
+              margin: 0,
+              boxShadow: "0px 2px 5px rgba(0,0,0,0.10)",
+            }}>
+              <strong>{msg.sender}:</strong> {msg.text}
+            </pre>
           </div>
         ))}
       </div>
@@ -96,8 +96,8 @@ const ChatPage: FC = () => {
         marginTop: "1rem",
         display: "flex",
         alignItems: "center",
-        width: "80%",
-        maxWidth: "500px",
+        width: "96%",
+        maxWidth: "800px",
       }}>
         <input
           type="text"
@@ -106,54 +106,33 @@ const ChatPage: FC = () => {
           placeholder="请输入消息..."
           style={{
             flex: 1,
-            padding: "10px",
-            borderRadius: "12px",
+            padding: "14px",
+            borderRadius: "14px",
             border: "1px solid #ddd",
-            boxShadow: "inset 0px 2px 4px rgba(0, 0, 0, 0.1)",
+            fontSize: "1rem",
+            boxShadow: "inset 0px 2px 4px rgba(0,0,0,0.10)",
+          }}
+          onKeyDown={e => {
+            if (e.key === "Enter") sendChat();
           }}
         />
         <button onClick={sendChat} style={{
           marginLeft: "1rem",
-          padding: "10px 16px",
-          borderRadius: "12px",
+          padding: "12px 22px",
+          borderRadius: "14px",
           border: "none",
           background: "#6A5ACD",
           color: "#fff",
+          fontWeight: 600,
+          fontSize: "1.05rem",
           cursor: "pointer",
           transition: "background 0.3s",
         }}>
           发送
         </button>
       </div>
-      <button onClick={() => {
-  if (hasUserInput) {
-    setErrorMessage("");
-    router.push("/story");
-  } else {
-    setErrorMessage("请至少输入一条消息再继续 ✨");
-  }
-}}
- style={{
-        marginTop: "1rem",
-        padding: "10px 16px",
-        borderRadius: "12px",
-        border: "none",
-        background: "#FFB6C1",
-        color: "#fff",
-        cursor: "pointer",
-        transition: "background 0.3s",
-      }}>
-        下一步：进入故事疗愈 💡
-      </button>
-      {errorMessage && (
-  <p style={{ color: "#D9534F", marginTop: "0.75rem", fontWeight: "bold" }}>
-    {errorMessage}
-  </p>
-)}
-
     </div>
-    
   );
 };
 
-export default ChatPage;
+export default SingleChatPage;
