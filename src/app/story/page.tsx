@@ -9,60 +9,55 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 const MIN_REFLECTIONS = 10;
 
 const StoryReflectionPage = () => {
-  const { chatHistory, narrative, setNarrative } = useContext(ChatContext)!;
+  const { narrative, setNarrative, sessionId } = useContext(ChatContext)!;
   const router = useRouter();
 
   const [reflectionInput, setReflectionInput] = useState<string>("");
   const [reflectionHistory, setReflectionHistory] = useState<{ sender: string; text: string }[]>([]);
   const [isReflecting, setIsReflecting] = useState<boolean>(false);
 
-  const historyText = chatHistory.map(msg => `${msg.sender}: ${msg.text}`).join("\n");
-
   // 自动获取故事（如未生成）
   useEffect(() => {
     if (!narrative) {
-      const payload = {
-        chat_history: historyText,
-      };
       fetch(`${API_URL}/api/generate_narrative`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ session_id: sessionId }),
       })
         .then(res => res.json())
-        .then(data => {
-          setNarrative(data.narrative);
-        })
+        .then(data => setNarrative(data.narrative))
         .catch(err => console.error("生成故事时出错：", err));
     }
-  }, [narrative, historyText, setNarrative]);
+  }, [narrative, setNarrative, sessionId]);
 
   // 统计用户反思次数
   const userReflectionCount = reflectionHistory.filter(msg => msg.sender === "用户").length;
   const remaining = Math.max(MIN_REFLECTIONS - userReflectionCount, 0);
 
   // 发送反思内容
-  const handleSendReflection = async () => {
-    if (!reflectionInput.trim() || isReflecting) return;
-    const currentInput = reflectionInput;
-    setReflectionHistory(prev => [...prev, { sender: "用户", text: currentInput }]);
-    setReflectionInput("");
-    setIsReflecting(true);
-    try {
-      const res = await fetch(`${API_URL}/api/reflect`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ history_chat: historyText, input: currentInput, story: narrative,  }),
-      });
-      const data = await res.json();
-      setReflectionHistory(prev => [...prev, { sender: "AI", text: data.reflection }]);
-    } catch (err) {
-      setReflectionHistory(prev => [...prev, { sender: "AI", text: "⚠️ 反思请求失败，请稍后重试。" }]);
-      console.error("发送反思时出错：", err);
-    } finally {
-      setIsReflecting(false);
-    }
-  };
+// 发送反思内容
+const handleSendReflection = async () => {
+  if (!reflectionInput.trim() || isReflecting) return;
+  const currentInput = reflectionInput;
+  setReflectionHistory(prev => [...prev, { sender: "用户", text: currentInput }]);
+  setReflectionInput("");
+  setIsReflecting(true);
+  try {
+    const res = await fetch(`${API_URL}/api/reflect`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: sessionId, input: currentInput }),
+    });
+    const data = await res.json();
+    setReflectionHistory(prev => [...prev, { sender: "AI", text: data.reflection }]);
+  } catch (err) {
+    setReflectionHistory(prev => [...prev, { sender: "AI", text: "⚠️ 反思请求失败，请稍后重试。" }]);
+    console.error("发送反思时出错：", err);
+  } finally {
+    setIsReflecting(false);
+  }
+};
+
 
   return (
     <div style={{

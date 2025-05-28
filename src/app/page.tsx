@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 const ChatPage: FC = () => {
-  const { chatHistory, setChatHistory } = useContext(ChatContext)!;
+  const { chatHistory, setChatHistory, sessionId } = useContext(ChatContext)!;
   const [input, setInput] = useState<string>("");
   const router = useRouter();
   const hasUserInput = chatHistory.some(msg => msg.sender === "用户");
@@ -35,7 +35,7 @@ const ChatPage: FC = () => {
       const res = await fetch(`${API_URL}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input }),
+        body: JSON.stringify({ session_id: sessionId, input }),
       });
       const data = await res.json();
       setChatHistory((prev: ChatMessage[]) => [...prev, { sender: "AI", text: data.response }]);
