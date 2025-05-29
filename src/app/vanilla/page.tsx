@@ -1,48 +1,61 @@
 "use client";
 
-import { useState, useEffect, useContext, FC } from "react";
-import { ChatContext, ChatMessage } from "../context/ChatContext";
+import { useState, useEffect } from "react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5002";
 
-const SingleChatPage: FC = () => {
-  const { chatHistory, setChatHistory } = useContext(ChatContext)!;
+type ChatMessage = {
+  sender: string;
+  text: string;
+};
+
+const MIN_REFLECTIONS = 10;
+
+function getOrCreateSessionId(): string {
+  if (typeof window === "undefined") return "";
+  let id = localStorage.getItem("session_id");
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem("session_id", id);
+  }
+  return id;
+}
+
+const WELCOME_MESSAGE = `你好，我是一名心理疗愈机器人，感谢你愿意在这里分享。
+你可以慢慢告诉我你最近遇到的情绪困境。无论是关于工作、学业上的压力，经济方面的焦虑，身体或心理上的不适，还是在人际关系中的烦恼与失落，都可以随意向我倾诉。我会认真聆听，不评判、不催促。
+你愿意和我说说看吗？`;
+
+const SingleChatPage = () => {
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [code, setCode] = useState<string>("");
+  const [gettingCode, setGettingCode] = useState(false);
+  const sessionId = getOrCreateSessionId();
 
-  // 页面加载时获取欢迎语（POST方式）
+  // 👇 Directly set welcome message on mount (no AI call)
   useEffect(() => {
-    fetch(`${API_URL}/api/pure_gpt4o_chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ input: "请用中文欢迎用户并简单介绍你的身份和功能。" }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setChatHistory([{ sender: "系统", text: data.response || data.message }]);
-      })
-      .catch((err) => console.error("获取欢迎语时出错：", err));
-    // eslint-disable-next-line
-  }, [setChatHistory]);
+    setChatHistory([{ sender: "系统", text: WELCOME_MESSAGE }]);
+  }, []);
 
-  // 发送聊天消息
+  // Send chat
   const sendChat = async () => {
     if (!input.trim()) return;
-    setChatHistory((prev: ChatMessage[]) => [...prev, { sender: "用户", text: input }]);
+    setChatHistory((prev) => [...prev, { sender: "用户", text: input }]);
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/pure_gpt4o_chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input }),
+        body: JSON.stringify({ session_id: sessionId, input }),
       });
       const data = await res.json();
-      setChatHistory((prev: ChatMessage[]) => [
+      setChatHistory((prev) => [
         ...prev,
         { sender: "AI", text: data.response || data.error || "⚠️ 未获取到AI回复。" },
       ]);
     } catch (error) {
-      setChatHistory((prev: ChatMessage[]) => [
+      setChatHistory((prev) => [
         ...prev,
         { sender: "系统", text: "⚠️ 发送失败，请稍后重试。" },
       ]);
@@ -52,6 +65,10 @@ const SingleChatPage: FC = () => {
     setLoading(false);
   };
 
+  // --- Instruction bar logic ---
+  const userReflectionCount = chatHistory.filter(msg => msg.sender === "用户").length;
+  const remaining = Math.max(MIN_REFLECTIONS - userReflectionCount, 0);
+  const FIXED_CODE = "AI2025HEAL1"; 
   return (
     <div style={{
       display: "flex",
@@ -63,6 +80,22 @@ const SingleChatPage: FC = () => {
       fontFamily: "'Quicksand', sans-serif",
     }}>
       <h1 style={{ color: "#6A5ACD", marginBottom: "1rem" }}>🌿 AI 心理疗愈对话 🌸</h1>
+       {/* Instruction bar */}
+      <div style={{
+        width: "100%",
+        maxWidth: "520px",
+        background: "rgba(255,255,255,0.97)",
+        borderRadius: "12px",
+        padding: "0.75rem 1.2rem",
+        marginBottom: "1rem",
+        boxShadow: "0px 2px 6px rgba(0,0,0,0.04)",
+        color: "#6A5ACD",
+        fontWeight: 500,
+        fontSize: "1.05rem"
+      }}>
+        你需要与AI反思交互至少 <strong style={{ color: "#FF69B4" }}>{MIN_REFLECTIONS}</strong> 次才能完成体验。<br />
+        当前已完成：<strong>{userReflectionCount}</strong> 次，还需<strong>{remaining}</strong>次。
+      </div>
       <div style={{
         width: "96%",
         maxWidth: "800px",
@@ -142,6 +175,63 @@ const SingleChatPage: FC = () => {
           发送
         </button>
       </div>
+      {remaining === 0 && !code && (
+        <button
+          style={{
+            marginTop: "1.5rem",
+            padding: "14px 28px",
+            borderRadius: "14px",
+            background: "#28b76b",
+            color: "#fff",
+            fontWeight: 600,
+            fontSize: "1.1rem",
+            border: "none",
+            cursor: gettingCode ? "not-allowed" : "pointer",
+            opacity: gettingCode ? 0.7 : 1,
+            transition: "background 0.3s",
+          }}
+          disabled={gettingCode}
+          onClick={async () => {
+            setGettingCode(true);
+            try {
+              // Call backend to end session/cleanup
+              await fetch(`${API_URL}/api/end_session`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ session_id: sessionId }),
+              });
+              // Wait for a short time for a better UI feel (optional)
+              setTimeout(() => {
+                setCode(FIXED_CODE);
+                setGettingCode(false);
+              }, 800);
+            } catch {
+              setCode("⚠️ 获取兑换码失败，请稍后重试");
+              setGettingCode(false);
+            }
+          }}
+        >
+          获取兑换码
+        </button>
+      )}
+
+      {code && (
+        <div style={{
+          marginTop: "2rem",
+          padding: "18px 24px",
+          background: "#fffbe5",
+          border: "2px dashed #28b76b",
+          color: "#1d6434",
+          fontSize: "1.15rem",
+          fontWeight: 700,
+          borderRadius: "14px",
+          textAlign: "center",
+          letterSpacing: "2px"
+        }}>
+          你的兑换码：<span style={{ fontWeight: 900 }}>{code}</span>
+        </div>
+      )}
+
     </div>
   );
 };

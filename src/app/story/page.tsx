@@ -2,19 +2,19 @@
 
 import { useEffect, useContext, useState } from "react";
 import { ChatContext } from "../context/ChatContext";
-import { useRouter } from "next/navigation";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5002";
 
 const MIN_REFLECTIONS = 10;
 
 const StoryReflectionPage = () => {
   const { narrative, setNarrative, sessionId } = useContext(ChatContext)!;
-  const router = useRouter();
-
+  const [code, setCode] = useState<string>("");
+  const [gettingCode, setGettingCode] = useState(false);
   const [reflectionInput, setReflectionInput] = useState<string>("");
   const [reflectionHistory, setReflectionHistory] = useState<{ sender: string; text: string }[]>([]);
   const [isReflecting, setIsReflecting] = useState<boolean>(false);
+  const FIXED_CODE = "AI2025HEAL2"; 
 
   // 自动获取故事（如未生成）
   useEffect(() => {
@@ -57,7 +57,6 @@ const handleSendReflection = async () => {
     setIsReflecting(false);
   }
 };
-
 
   return (
     <div style={{
@@ -222,25 +221,62 @@ const handleSendReflection = async () => {
             发送
           </button>
         </div>
+{remaining === 0 && !code && (
         <button
-          onClick={() => router.push("/")}
-          disabled={userReflectionCount < MIN_REFLECTIONS}
           style={{
-            marginTop: "2rem",
-            padding: "12px 20px",
-            borderRadius: "12px",
-            border: "none",
-            background: userReflectionCount < MIN_REFLECTIONS ? "#ddd" : "#FFB6C1",
+            marginTop: "1.5rem",
+            padding: "14px 28px",
+            borderRadius: "14px",
+            background: "#28b76b",
             color: "#fff",
-            fontSize: "1rem",
-            cursor: userReflectionCount < MIN_REFLECTIONS ? "not-allowed" : "pointer",
-            opacity: userReflectionCount < MIN_REFLECTIONS ? 0.65 : 1,
+            fontWeight: 600,
+            fontSize: "1.1rem",
+            border: "none",
+            cursor: gettingCode ? "not-allowed" : "pointer",
+            opacity: gettingCode ? 0.7 : 1,
             transition: "background 0.3s",
-            boxShadow: "0px 2px 6px rgba(0, 0, 0, 0.2)",
+          }}
+          disabled={gettingCode}
+          onClick={async () => {
+            setGettingCode(true);
+            try {
+              // Call backend to end session/cleanup
+              await fetch(`${API_URL}/api/end_session`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ session_id: sessionId }),
+              });
+              // Wait for a short time for a better UI feel (optional)
+              setTimeout(() => {
+                setCode(FIXED_CODE);
+                setGettingCode(false);
+              }, 800);
+            } catch {
+              setCode("⚠️ 获取兑换码失败，请稍后重试");
+              setGettingCode(false);
+            }
           }}
         >
-          🔄 重新开始 🌱
+          获取兑换码
         </button>
+      )}
+
+      {code && (
+        <div style={{
+          marginTop: "2rem",
+          padding: "18px 24px",
+          background: "#fffbe5",
+          border: "2px dashed #28b76b",
+          color: "#1d6434",
+          fontSize: "1.15rem",
+          fontWeight: 700,
+          borderRadius: "14px",
+          textAlign: "center",
+          letterSpacing: "2px"
+        }}>
+          你的兑换码：<span style={{ fontWeight: 900 }}>{code}</span>
+        </div>
+      )}
       </div>
     </div>
   );

@@ -6,7 +6,7 @@ import { useState, useEffect, useContext, FC } from "react";
 import { ChatContext, ChatMessage } from "./context/ChatContext";
 import { useRouter } from "next/navigation";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5002";
 
 const ChatPage: FC = () => {
   const { chatHistory, setChatHistory, sessionId } = useContext(ChatContext)!;
