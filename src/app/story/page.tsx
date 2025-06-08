@@ -15,6 +15,8 @@ const StoryReflectionPage = () => {
   const [reflectionHistory, setReflectionHistory] = useState<{ sender: string; text: string }[]>([]);
   const [isReflecting, setIsReflecting] = useState<boolean>(false);
   const FIXED_CODE = "AI2025HEAL2"; 
+  const welcomeAIMessage = "这是我专门为你创作的疗愈故事，我会在这里，耐心地等你读完。❤️\n当你读完这个故事后，请告诉我，我们一起来轻轻地走进你的内心世界，看看这个故事是否在某个瞬间，悄悄触动了你。\n你不需要急着回答，只需慢慢地想，慢慢地说，我会一直在这里，静静地听着。";
+
 
   // 自动获取故事（如未生成）
   useEffect(() => {
@@ -29,6 +31,17 @@ const StoryReflectionPage = () => {
         .catch(err => console.error("生成故事时出错：", err));
     }
   }, [narrative, setNarrative, sessionId]);
+  useEffect(() => {
+  if (
+    narrative &&
+    reflectionHistory.length === 0 // Only when reflection just started
+  ) {
+    setReflectionHistory([
+      { sender: "AI", text: welcomeAIMessage }
+    ]);
+  }
+  // eslint-disable-next-line
+}, [narrative]);
 
   // 统计用户反思次数
   const userReflectionCount = reflectionHistory.filter(msg => msg.sender === "用户").length;
@@ -61,21 +74,21 @@ const handleSendReflection = async () => {
   return (
     <div style={{
       display: "flex",
-      flexDirection: "row",
+      flexDirection: "column", 
       minHeight: "100vh",
       background: "linear-gradient(to bottom right, #FFD1DC 70%, #D8BFD8 100%)",
       fontFamily: "'Quicksand', sans-serif",
     }}>
       {/* 左侧：故事展示 */}
       <div style={{
-        flex: 1,
+        width: "100%",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        borderRight: "2px solid #E6E6FA",
         background: "rgba(255,255,255,0.85)",
         padding: "2rem 1.5rem",
+        marginBottom: "1.5rem",
       }}>
         <h1 style={{ color: "#6A5ACD", marginBottom: "1rem" }}>📖 你的疗愈故事 ✨</h1>
         <div style={{
@@ -109,9 +122,9 @@ const handleSendReflection = async () => {
       </div>
       {/* 右侧：反思多轮对话 */}
       <div style={{
-        flex: 1,
+        width: "100%",
         display: "flex",
-        flexDirection: "column",
+        flexDirection: "column", 
         alignItems: "center",
         justifyContent: "center",
         background: "rgba(245,245,255,0.8)",
