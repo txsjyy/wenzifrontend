@@ -44,7 +44,7 @@ const SingleChatPage = () => {
     setChatHistory((prev) => [...prev, { sender: "用户", text: input }]);
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/pure_gpt4o_chat`, {
+      const res = await fetch(`${API_URL}/api/pure_deepseek_chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId, input }),
