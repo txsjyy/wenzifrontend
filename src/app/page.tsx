@@ -284,7 +284,7 @@ export default function UnifiedChatPage() {
       display: "flex", flexDirection: "column", alignItems: "center",
       minHeight: "100vh", background: "linear-gradient(to bottom,#FFEBCD,#FFF5EE)"
     }}>
-      <h1 style={{ color: "#6A5ACD", marginTop: "2rem" }}>疗愈对话</h1>
+      <h1 style={{ color: "#6A5ACD", marginTop: "2rem" }}>🌿 AI 心理疗愈对话 🌸</h1>
       <div style={{
         width: "96%", maxWidth: "800px", background: "rgba(255,255,255,0.92)",
         borderRadius: "18px", padding: "1.5rem 1rem 1rem 1rem", margin: "1.5rem 0",
