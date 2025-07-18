@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5002";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://101.33.214.139:5002";
 
 type ChatMessage = {
   sender: string;
@@ -11,11 +11,28 @@ type ChatMessage = {
 
 const MIN_REFLECTIONS = 10;
 
+// Universal UUID v4 generator, always works in browser
+function uuidv4(): string {
+  if (typeof window !== "undefined" && typeof crypto !== "undefined" && crypto.getRandomValues) {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      const r = (crypto.getRandomValues(new Uint8Array(1))[0] & 0xf) >> 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  } else {
+    // Fallback if crypto.getRandomValues is not available (should rarely happen)
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  }
+}
 function getOrCreateSessionId(): string {
   if (typeof window === "undefined") return "";
   let id = localStorage.getItem("session_id");
   if (!id) {
-    id = crypto.randomUUID();
+    id = uuidv4();
     localStorage.setItem("session_id", id);
   }
   return id;
