@@ -1,11 +1,10 @@
-# Install dependencies only when needed
+# Stage 1: Install deps (including dev)
 FROM node:20-slim AS deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+RUN npm ci  # install dev + prod dependencies
 
-
-# Build the app
+# Stage 2: Build
 FROM node:20-slim AS builder
 WORKDIR /app
 
@@ -16,12 +15,20 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-# Production image
+# Stage 3: Production runtime
 FROM node:20-slim AS runner
 WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Copy only necessary build outputs
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
+
+# Install **only production dependencies**
+RUN npm ci --omit=dev
+
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["npm", "run", "start"]

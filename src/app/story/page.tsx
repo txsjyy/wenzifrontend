@@ -1,298 +1,386 @@
-"use client";
 
+// export default ChatPage;
+"use client";
 import { useEffect, useContext, useState } from "react";
 import { ChatContext } from "../context/ChatContext";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5002";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://101.33.214.139:5002";
+const MIN_REFLECTIONS = 5;
+const reflectionIntro = "请慢慢说出你的感受，我们一起来反思故事带给你的共鸣与触动。你可以随时分享新的想法，我都会耐心聆听。";
 
-const MIN_REFLECTIONS = 10;
+type Step = "chat" | "story" | "reflection" | "done";
 
-const StoryReflectionPage = () => {
-  const { narrative, setNarrative, sessionId } = useContext(ChatContext)!;
-  const [code, setCode] = useState<string>("");
-  const [gettingCode, setGettingCode] = useState(false);
-  const [reflectionInput, setReflectionInput] = useState<string>("");
-  const [reflectionHistory, setReflectionHistory] = useState<{ sender: string; text: string }[]>([]);
-  const [isReflecting, setIsReflecting] = useState<boolean>(false);
-  const FIXED_CODE = "AI2025HEAL2"; 
-  const welcomeAIMessage = "这是我专门为你创作的疗愈故事，我会在这里，耐心地等你读完。❤️\n当你读完这个故事后，请告诉我，我们一起来轻轻地走进你的内心世界，看看这个故事是否在某个瞬间，悄悄触动了你。\n你不需要急着回答，只需慢慢地想，慢慢地说，我会一直在这里，静静地听着。";
+export default function UnifiedChatPage() {
+  const { chatHistory, setChatHistory, sessionId} = useContext(ChatContext)!;
+  const [input, setInput] = useState("");
+  const [step, setStep] = useState<Step>("chat");
+  const [isLoading, setIsLoading] = useState(false);
+  const [reflectionCount, setReflectionCount] = useState(0);
+  const [code, setCode] = useState("");
+    const { setSessionId } = useContext(ChatContext)!;
+  const userMessageCount = chatHistory.filter(m => m.sender === "用户").length;
+// Tailwind/dark mode state
+  const [darkMode, setDarkMode] = useState(
+    typeof window !== "undefined"
+      ? (localStorage.getItem("ai_healing_darkmode") === "true")
+      : false
+  );
 
-
-  // 自动获取故事（如未生成）
   useEffect(() => {
-    if (!narrative) {
-      fetch(`${API_URL}/api/generate_narrative`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: sessionId }),
-      })
-        .then(res => res.json())
-        .then(data => setNarrative(data.narrative))
-        .catch(err => console.error("生成故事时出错：", err));
+    if (darkMode) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
     }
-  }, [narrative, setNarrative, sessionId]);
+    localStorage.setItem("ai_healing_darkmode", darkMode ? "true" : "false");
+  }, [darkMode]);
+    useEffect(() => {
+  // 如果 context 里还没有 sessionId，就从 localStorage 取回来
+    if (!sessionId) {
+      const storedId = localStorage.getItem("session_id");
+      if (storedId) {
+        setSessionId(storedId);
+        console.log("🔄 Restored session_id from localStorage:", storedId);
+      } else {
+        console.warn("⚠️ No session_id found in localStorage");
+      }
+    }
+  }, [sessionId, setSessionId]);
+
+  // Greeting on mount
   useEffect(() => {
-  if (
-    narrative &&
-    reflectionHistory.length === 0 // Only when reflection just started
-  ) {
-    setReflectionHistory([
-      { sender: "AI", text: welcomeAIMessage }
-    ]);
-  }
-  // eslint-disable-next-line
-}, [narrative]);
+    if (chatHistory.length === 0) {
+      fetch(`${API_URL}/api/start`)
+        .then(res => res.json())
+        .then(data => setChatHistory([{ sender: "系统", text: data.message }]));
+    }
+    // eslint-disable-next-line
+  }, []);
 
-  // 统计用户反思次数
-  const userReflectionCount = reflectionHistory.filter(msg => msg.sender === "用户").length;
-  const remaining = Math.max(MIN_REFLECTIONS - userReflectionCount, 0);
+  // Insert reflection intro when entering reflection step
+  useEffect(() => {
+    if (step === "reflection" && !chatHistory.some(m => m.text === reflectionIntro)) {
+      setChatHistory(prev => [...prev, { sender: "AI", text: reflectionIntro }]);
+    }
+    // eslint-disable-next-line
+  }, [step]);
 
-  // 发送反思内容
-// 发送反思内容
-const handleSendReflection = async () => {
-  if (!reflectionInput.trim() || isReflecting) return;
-  const currentInput = reflectionInput;
-  setReflectionHistory(prev => [...prev, { sender: "用户", text: currentInput }]);
-  setReflectionInput("");
-  setIsReflecting(true);
+  // Main send handler
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
+    setChatHistory(prev => [...prev, { sender: "用户", text: input }]);
+    setInput("");
+    setIsLoading(true);
+    if (
+      input.trim() === "下一步" &&
+      step === "chat" &&
+      userMessageCount >= 3
+    ) {
+      setInput("");
+      await handleFetchStory();
+      return;
+    }
+
+    // If not enough reflections, give feedback
+    if (
+      input.trim() === "下一步" &&
+      step === "chat" &&
+      userMessageCount < 3
+    ) {
+      setChatHistory(prev => [
+        ...prev,
+        { sender: "系统", text: "⚠️ 请先和我多聊聊，至少三次反思后才能进入下一步。" }
+      ]);
+      setIsLoading(false);
+      return;
+    }
+    if (step === "chat") {
+      // Normal chat
+      try {
+        const res = await fetch(`${API_URL}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: sessionId, input }),
+        });
+        const data = await res.json();
+        setChatHistory(prev => [...prev, { sender: "AI", text: data.response }]);
+      } finally {
+        setIsLoading(false);
+      }
+    } else if (step === "reflection") {
+      // Reflection
+      setReflectionCount(c => c + 1);
+      try {
+        const res = await fetch(`${API_URL}/api/reflect`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: sessionId, input }),
+        });
+        const data = await res.json();
+        setChatHistory(prev => [...prev, { sender: "AI", text: data.reflection }]);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+// Step: Story (stream from backend, append as AI message incrementally)
+const handleFetchStory = async () => {
+  setIsLoading(true);
+  setStep("story");
+
+  const es = new EventSource(
+    `${API_URL}/api/generate_narrative_sse?session_id=${encodeURIComponent(sessionId)}`
+  );
+
+  // 记录新建的 AI 占位符索引
+  let placeholderIndex = -1;
+
+  es.addEventListener("message", (evt: MessageEvent) => {
+    try {
+      const { text } = JSON.parse(evt.data);
+      if (!text) return;
+
+      // 第一次收到 message 再建 placeholder
+      if (placeholderIndex === -1) {
+        setChatHistory(prev => {
+          const next = [...prev];
+          next.push({ sender: "AI", text: "" });
+          placeholderIndex = next.length - 1;
+          return next;
+        });
+      }
+
+      // 追加内容
+      setChatHistory(prev => {
+        const next = [...prev];
+        if (placeholderIndex >= 0 && placeholderIndex < next.length) {
+          next[placeholderIndex] = {
+            ...next[placeholderIndex],
+            text: next[placeholderIndex].text + text,
+          };
+        }
+        return next;
+      });
+    } catch {
+      // 忽略格式错误的 frame
+    }
+  });
+
+  es.addEventListener("done", () => {
+    es.close();
+    setIsLoading(false);
+    setStep("reflection");
+  });
+
+  es.addEventListener("error", (evt) => {
+    console.error("SSE error", evt);
+    es.close();
+    setIsLoading(false);
+  });
+};
+
+
+
+const handleGetCode = async () => {
+  setIsLoading(true);
   try {
-    const res = await fetch(`${API_URL}/api/reflect`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: sessionId, input: currentInput }),
-    });
-    const data = await res.json();
-    setReflectionHistory(prev => [...prev, { sender: "AI", text: data.reflection }]);
+    // instead of fixed code, show the user their sessionId
+    setTimeout(() => {
+      setCode(sessionId);
+      setStep("done");
+      setIsLoading(false);
+    }, 800);
   } catch (err) {
-    setReflectionHistory(prev => [...prev, { sender: "AI", text: "⚠️ 反思请求失败，请稍后重试。" }]);
-    console.error("发送反思时出错：", err);
-  } finally {
-    setIsReflecting(false);
+    console.error("End session error:", err);
+    setIsLoading(false);
   }
 };
+
+
+  // Count reflections (user messages after story step, in reflection step)
+  useEffect(() => {
+    if (step === "reflection") {
+      // Count messages from user after reflection started
+      let count = 0;
+      let foundIntro = false;
+      for (const msg of chatHistory) {
+        if (msg.text === reflectionIntro) foundIntro = true;
+        if (foundIntro && msg.sender === "用户") count += 1;
+      }
+      setReflectionCount(count);
+    }
+  }, [chatHistory, step]);
 
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column", 
-      minHeight: "100vh",
-      background: "linear-gradient(to bottom right, #FFD1DC 70%, #D8BFD8 100%)",
-      fontFamily: "'Quicksand', sans-serif",
-    }}>
-      {/* 左侧：故事展示 */}
-      <div style={{
-        width: "100%",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(255,255,255,0.85)",
-        padding: "2rem 1.5rem",
-        marginBottom: "1.5rem",
-      }}>
-        <h1 style={{ color: "#6A5ACD", marginBottom: "1rem" }}>📖 你的疗愈故事 ✨</h1>
-        <div style={{
-          width: "100%",
-          maxWidth: "520px",
-          minHeight: "350px",
-          background: "rgba(255,255,255,0.97)",
-          borderRadius: "16px",
-          padding: "1.5rem",
-          boxShadow: "0px 4px 10px rgba(0,0,0,0.1)",
-          marginBottom: "1rem",
-          animation: "fadeIn 1s ease-in-out",
-          overflowY: "auto"
-        }}>
-          {narrative ? (
-            <pre style={{
-              color: "#555",
-              lineHeight: "1.8",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-              fontFamily: "'Quicksand', sans-serif",
-              textAlign: "left",
-              margin: 0
-            }}>
-              {narrative}
-            </pre>
-          ) : (
-            <p style={{ color: "#999" }}>🌙 正在生成你的故事……请稍等 🌸</p>
-          )}
-        </div>
+    <div className="relative flex flex-col items-center min-h-screen bg-gradient-to-b from-orange-50 to-pink-50 dark:from-gray-900 dark:to-gray-950 transition-colors duration-300">
+  {/* Fixed dark mode toggle */}
+  <button
+    className="fixed top-2 right-2 z-50 h-10 w-20 flex items-center justify-center rounded-xl bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-200 font-bold shadow"
+    onClick={() => setDarkMode(d => !d)}
+    aria-label="切换深色模式"
+  >
+    {darkMode ? "🌞 白天" : "🌙 黑夜"}
+  </button>
+
+      <h1 className="text-2xl font-bold mt-10 mb-2 text-indigo-600 dark:text-indigo-200">🌿 AI 心理疗愈对话 🌸</h1>
+
+      {step === "reflection" && (
+      <div className="w-full max-w-xl bg-white/90 dark:bg-gray-800 rounded-xl px-5 py-3 mb-4 shadow text-indigo-600 dark:text-indigo-200 font-medium text-base">
+        你需要与AI反思交互至少 <strong style={{ color: "#FF69B4" }}>{MIN_REFLECTIONS}</strong> 次才能完成体验。<br />
+        当前已完成：<strong>{reflectionCount}</strong> 次，还需<strong>{Math.max(MIN_REFLECTIONS - reflectionCount, 0)}</strong>次。
       </div>
-      {/* 右侧：反思多轮对话 */}
-      <div style={{
-        width: "100%",
-        display: "flex",
-        flexDirection: "column", 
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(245,245,255,0.8)",
-        padding: "2rem 1.5rem"
-      }}>
-        {/* Instruction */}
-        <div style={{
-          width: "100%",
-          maxWidth: "520px",
-          background: "rgba(255,255,255,0.97)",
-          borderRadius: "12px",
-          padding: "0.75rem 1.2rem",
-          marginBottom: "1rem",
-          boxShadow: "0px 2px 6px rgba(0,0,0,0.04)",
-          color: "#6A5ACD",
-          fontWeight: 500,
-          fontSize: "1.05rem"
-        }}>
-          你需要与AI反思交互至少 <strong style={{ color: "#FF69B4" }}>{MIN_REFLECTIONS}</strong> 次才能完成体验。<br />
-          当前已完成：<strong>{userReflectionCount}</strong> 次，还需<strong>{remaining}</strong>次。
+      
+      )}
+      {step === "chat" && (
+        <div className="w-full max-w-xl bg-white/90 dark:bg-gray-800 rounded-xl px-5 py-3 mb-4 shadow text-indigo-600 dark:text-indigo-200 font-medium text-base">
+          💡 使用说明：  
+          <br />
+          1. 请先和我进行至少 <strong>3 次对话</strong>，充分表达你的情感困境。  
+          <br />
+          2. 完成后，输入 <strong>“下一步”</strong> 或点击 📖 按钮，即可生成你的专属疗愈故事。  
         </div>
-        <h1 style={{ color: "#6A5ACD", marginBottom: "1rem" }}>🌿 情感反思 💭</h1>
-        <div style={{
-          width: "100%",
-          maxWidth: "520px",
-          background: "rgba(255,255,255,0.97)",
-          borderRadius: "16px",
-          padding: "1.5rem",
-          boxShadow: "0px 4px 10px rgba(0,0,0,0.1)",
-          marginBottom: "1rem",
-          animation: "fadeIn 1s ease-in-out",
-          minHeight: "320px",
-          maxHeight: "430px",
-          overflowY: "auto"
-        }}>
-          {reflectionHistory.length === 0 && (
-            <div style={{ color: "#999", marginBottom: "1rem" }}>请在下方输入你的感受，与AI聊聊你的共鸣和思考。</div>
-          )}
-          {reflectionHistory.map((msg, idx) => (
-            <div key={idx} style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: msg.sender === "用户" ? "flex-end" : "flex-start",
-              marginBottom: "0.5rem",
-            }}>
-              <pre style={{
-                background: msg.sender === "用户" ? "#FFB6C1" : "#E6E6FA",
-                padding: "8px 12px",
-                borderRadius: "12px",
-                maxWidth: "80%",
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-                fontFamily: "'Quicksand', sans-serif",
-                lineHeight: "1.5",
-                margin: 0,
-                boxShadow: "0px 2px 5px rgba(0, 0, 0, 0.08)",
-              }}>
-                <strong>{msg.sender}:</strong> {msg.text}
-              </pre>
+      )}
+
+
+      {/* Chat history card */}
+      <div className="w-[96%] max-w-2xl bg-white/90 dark:bg-gray-800 rounded-2xl px-4 py-6 my-6 shadow-lg min-h-[500px] max-h-[600px] overflow-y-auto">
+        {chatHistory.map((msg, i) => (
+          <div key={i} className={`flex mb-3 ${msg.sender === "用户" ? "justify-end" : "justify-start"}`}>
+            <div className={`
+              ${msg.sender === "用户"
+                ? "bg-pink-200 dark:bg-indigo-400"
+                : "bg-purple-100 dark:bg-indigo-950"}
+              text-gray-900 dark:text-gray-100 rounded-xl px-4 py-2 max-w-[75%] whitespace-pre-wrap break-words text-base shadow`}
+            >
+              <strong>{msg.sender}:</strong> {msg.text}
             </div>
-          ))}
-          {isReflecting && (
-            <div style={{
-              color: "#6A5ACD",
-              fontStyle: "italic",
-              margin: "8px 0 0 0",
-            }}>AI正在思考中...</div>
-          )}
+          </div>
+        ))}
+        {isLoading && <div style={{ color: "#aaa", fontStyle: "italic" }}>AI正在思考...</div>}
+      </div>
+
+      {/* Input/controls */}
+      {step === "chat" && (
+        <>
+          <div className="mt-4 flex items-center w-[96%] max-w-2xl">
+            <div className="relative group mr-4">
+                <button
+                    className={`
+                    w-12 h-12 flex items-center justify-center
+                    rounded-xl font-bold text-white text-2xl
+                    bg-indigo-500 dark:bg-indigo-700
+                    shadow transition-all
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                    `}
+                    onClick={handleFetchStory}
+                    disabled={isLoading || userMessageCount < 3}
+                    aria-label="生成新故事"
+                    type="button"
+                    >
+                    <span role="img" aria-label="生成新故事">📖</span>
+                </button>
+                {/* tooltip */}
+                <div className="
+                    absolute left-1/2 top-full mt-2 -translate-x-1/2
+                    px-3 py-1 rounded bg-black/80 text-white text-xs
+                    opacity-0 group-hover:opacity-100 pointer-events-none
+                    whitespace-nowrap transition-opacity
+                    z-10
+                ">
+                生成新故事
+                </div>
+            </div>
+            <input
+              type="text"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") handleSend(); }}
+              placeholder="请输入消息..."
+              className="flex-1 px-4 py-2 rounded-xl border border-indigo-300 dark:border-indigo-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-inner focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-600"
+              disabled={isLoading}
+            /> 
+            <button onClick={handleSend}
+              className={`
+                ml-4 px-4 py-2 rounded-xl font-semibold text-white
+                bg-indigo-500 hover:bg-indigo-400 dark:bg-indigo-700 dark:hover:bg-indigo-600
+                transition-all duration-200
+                ${isLoading ? "opacity-60 cursor-not-allowed" : ""}
+              `}
+              disabled={isLoading}
+            >发送</button>
+          </div>   
+        </>
+      )}
+
+      {step === "story" && (
+        <div style={{ color: "#6A5ACD", margin: "1rem 0" }}>
+          AI正在准备你的故事...
         </div>
-        <div style={{
-          marginTop: "1rem",
-          display: "flex",
-          alignItems: "center",
-          width: "100%",
-          maxWidth: "520px",
-        }}>
-          <input
-            type="text"
-            value={reflectionInput}
-            onChange={(e) => setReflectionInput(e.target.value)}
-            placeholder="请分享你的感受..."
-            style={{
-              flex: 1,
-              padding: "10px",
-              borderRadius: "12px",
-              border: "1px solid #ddd",
-              boxShadow: "inset 0px 2px 4px rgba(0, 0, 0, 0.1)",
+      )}
+
+      {step === "reflection" && (
+        <>
+        <div className="text-indigo-600 dark:text-indigo-200 font-semibold mb-2 text-base">
+            <input
+              type="text"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") handleSend(); }}
+              placeholder="请分享你的反思感受..."
+              className="flex-1 px-4 py-2 rounded-xl border border-indigo-300 dark:border-indigo-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-inner focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-600"
+              disabled={isLoading}
+            />
+            <button onClick={handleSend}
+              className={`
+                ml-4 px-4 py-2 rounded-xl font-semibold text-white
+                bg-indigo-500 hover:bg-indigo-400 dark:bg-indigo-700 dark:hover:bg-indigo-600
+                transition-all duration-200
+                ${isLoading ? "opacity-60 cursor-not-allowed" : ""}
+              `}
+              disabled={isLoading}
+            >发送</button>
+          </div>
+          {reflectionCount >= MIN_REFLECTIONS && !code && (
+            <button
+              onClick={handleGetCode}
+              className={`
+                mt-6 px-8 py-4 rounded-xl font-bold text-white text-lg
+                bg-green-500 dark:bg-green-600
+                shadow transition-all
+                disabled:opacity-50 disabled:cursor-not-allowed
+              `}
+              disabled={isLoading}
+            >
+              获取兑换码
+            </button>
+          )}
+        </>
+      )}
+
+      {step === "done" && (
+        <div className="
+          mt-8 px-8 py-6 bg-yellow-50 dark:bg-green-900 border-2 border-dashed border-green-500 dark:border-green-400
+          text-green-700 dark:text-green-200 text-lg font-bold rounded-xl text-center tracking-wider
+        ">
+          你的兑换码：<span style={{ fontWeight: 900 }}>{code}</span>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(code);
+              // 临时状态提示
+              const btn = document.getElementById("copy-btn");
+              if (btn) {
+                btn.textContent = "✅ 已复制";
+                setTimeout(() => (btn.textContent = "📋 复制"), 1500);
+              }
             }}
-            onKeyDown={e => {
-              if (e.key === "Enter") handleSendReflection();
-            }}
-            disabled={isReflecting}
-          />
-          <button onClick={handleSendReflection} style={{
-            marginLeft: "1rem",
-            padding: "10px 16px",
-            borderRadius: "12px",
-            border: "none",
-            background: "#6A5ACD",
-            color: "#fff",
-            cursor: isReflecting ? "not-allowed" : "pointer",
-            opacity: isReflecting ? 0.7 : 1,
-            transition: "background 0.3s",
-          }}
-            disabled={isReflecting}
+            id="copy-btn"
+            className="px-3 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-all duration-200 shadow-md"
           >
-            发送
+            📋 复制
           </button>
         </div>
-{remaining === 0 && !code && (
-        <button
-          style={{
-            marginTop: "1.5rem",
-            padding: "14px 28px",
-            borderRadius: "14px",
-            background: "#28b76b",
-            color: "#fff",
-            fontWeight: 600,
-            fontSize: "1.1rem",
-            border: "none",
-            cursor: gettingCode ? "not-allowed" : "pointer",
-            opacity: gettingCode ? 0.7 : 1,
-            transition: "background 0.3s",
-          }}
-          disabled={gettingCode}
-          onClick={async () => {
-            setGettingCode(true);
-            try {
-              // Call backend to end session/cleanup
-              await fetch(`${API_URL}/api/end_session`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ session_id: sessionId }),
-              });
-              // Wait for a short time for a better UI feel (optional)
-              setTimeout(() => {
-                setCode(FIXED_CODE);
-                setGettingCode(false);
-              }, 800);
-            } catch {
-              setCode("⚠️ 获取兑换码失败，请稍后重试");
-              setGettingCode(false);
-            }
-          }}
-        >
-          获取兑换码
-        </button>
       )}
-
-      {code && (
-        <div style={{
-          marginTop: "2rem",
-          padding: "18px 24px",
-          background: "#fffbe5",
-          border: "2px dashed #28b76b",
-          color: "#1d6434",
-          fontSize: "1.15rem",
-          fontWeight: 700,
-          borderRadius: "14px",
-          textAlign: "center",
-          letterSpacing: "2px"
-        }}>
-          你的兑换码：<span style={{ fontWeight: 900 }}>{code}</span>
-        </div>
-      )}
-      </div>
     </div>
   );
-};
-
-export default StoryReflectionPage;
+}

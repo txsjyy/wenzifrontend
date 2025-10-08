@@ -1,260 +1,138 @@
-
-
-// export default ChatPage;
 "use client";
-import { useEffect, useContext, useState } from "react";
+
+import { useState, useContext } from "react";
+import { useRouter } from "next/navigation";
 import { ChatContext } from "./context/ChatContext";
+import { v4 as uuidv4 } from "uuid";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://101.33.214.139:5002";
-const MIN_REFLECTIONS = 10;
-const FIXED_CODE = "AI2025HEAL2";
-const reflectionIntro = "请慢慢说出你的感受，我们一起来反思故事带给你的共鸣与触动。你可以随时分享新的想法，我都会耐心聆听。";
-
-type Step = "chat" | "story" | "reflection" | "done";
-
-export default function UnifiedChatPage() {
-  const { chatHistory, setChatHistory, sessionId, setNarrative } = useContext(ChatContext)!;
-  const [input, setInput] = useState("");
-  const [step, setStep] = useState<Step>("chat");
-  const [isLoading, setIsLoading] = useState(false);
-  const [reflectionCount, setReflectionCount] = useState(0);
-  const [code, setCode] = useState("");
-
-  // Greeting on mount
-  useEffect(() => {
-    if (chatHistory.length === 0) {
-      fetch(`${API_URL}/api/start`)
-        .then(res => res.json())
-        .then(data => setChatHistory([{ sender: "系统", text: data.message }]));
-    }
-    // eslint-disable-next-line
-  }, []);
-
-  // Insert reflection intro when entering reflection step
-  useEffect(() => {
-    if (step === "reflection" && !chatHistory.some(m => m.text === reflectionIntro)) {
-      setChatHistory(prev => [...prev, { sender: "AI", text: reflectionIntro }]);
-    }
-    // eslint-disable-next-line
-  }, [step]);
-
-  // Main send handler
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
-    setChatHistory(prev => [...prev, { sender: "用户", text: input }]);
-    setInput("");
-    setIsLoading(true);
-
-    if (step === "chat") {
-      // Normal chat
-      try {
-        const res = await fetch(`${API_URL}/api/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session_id: sessionId, input }),
-        });
-        const data = await res.json();
-        setChatHistory(prev => [...prev, { sender: "AI", text: data.response }]);
-      } finally {
-        setIsLoading(false);
+export default function EntryPage() {
+  const [description, setDescription] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://101.33.214.139:5002";
+  const { setSessionId } = useContext(ChatContext)!;
+  const getOrCreateSessionId = () => {
+      let id = localStorage.getItem("session_id");
+      if (!id) {
+        id = uuidv4().replace(/-/g, "").slice(0, 8);
+        localStorage.setItem("session_id", id);
       }
-    } else if (step === "reflection") {
-      // Reflection
-      setReflectionCount(c => c + 1);
-      try {
-        const res = await fetch(`${API_URL}/api/reflect`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session_id: sessionId, input }),
-        });
-        const data = await res.json();
-        setChatHistory(prev => [...prev, { sender: "AI", text: data.reflection }]);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  };
+      return id;
+    };
 
-  // Step: Story (fetch from backend, insert as AI message)
-  const handleFetchStory = async () => {
-    setIsLoading(true);
+  const handleNext = async () => {
+    if (!description.trim()) {
+      setError("请简述下您对体验规则的理解吧");
+      return;
+    }
+
+    setLoading(true);
+    const session_id = getOrCreateSessionId();
+    setError("");
+
     try {
-      const res = await fetch(`${API_URL}/api/generate_narrative`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: sessionId }),
-      });
-      const data = await res.json();
-      setNarrative(data.narrative); // If you want to save it to context
-      setChatHistory(prev => [...prev, { sender: "AI", text: data.narrative }]);
-      setStep("reflection");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      const response = await fetch(
+        `${API_URL}/api/login`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: session_id,
+            description,
+          }),
+        }
+      );
 
-  // Get code after enough reflections
-  const handleGetCode = async () => {
-    setIsLoading(true);
-    await fetch(`${API_URL}/api/end_session`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: sessionId }),
-    });
-    setTimeout(() => {
-      setCode(FIXED_CODE);
-      setIsLoading(false);
-      setStep("done");
-    }, 800);
-  };
+      const data = await response.json();
+      // Save to context
+      setSessionId(session_id);
 
-  // Count reflections (user messages after story step, in reflection step)
-  useEffect(() => {
-    if (step === "reflection") {
-      // Count messages from user after reflection started
-      let count = 0;
-      let foundIntro = false;
-      for (const msg of chatHistory) {
-        if (msg.text === reflectionIntro) foundIntro = true;
-        if (foundIntro && msg.sender === "用户") count += 1;
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to log in");
       }
-      setReflectionCount(count);
+
+      // Go to next page
+      router.push("/story");
+    } catch (err) {
+      console.error("Login error:", err);
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+    } finally {
+      setLoading(false);
     }
-    // eslint-disable-next-line
-  }, [chatHistory, step]);
+  };
 
   return (
-    <div style={{
-      display: "flex", flexDirection: "column", alignItems: "center",
-      minHeight: "100vh", background: "linear-gradient(to bottom,#FFEBCD,#FFF5EE)"
-    }}>
-      <h1 style={{ color: "#6A5ACD", marginTop: "2rem" }}>🌿 AI 心理疗愈对话 🌸</h1>
-      <div style={{
-        width: "96%", maxWidth: "800px", background: "rgba(255,255,255,0.92)",
-        borderRadius: "18px", padding: "1.5rem 1rem 1rem 1rem", margin: "1.5rem 0",
-        boxShadow: "0px 4px 12px rgba(0,0,0,0.08)", minHeight: 500, maxHeight: 600, overflowY: "auto"
-      }}>
-        {chatHistory.map((msg, i) => (
-          <div key={i} style={{
-            display: "flex",
-            justifyContent: msg.sender === "用户" ? "flex-end" : "flex-start",
-            marginBottom: 12
-          }}>
-            <div style={{
-              background: msg.sender === "用户" ? "#FFB6C1" : "#E6E6FA",
-              color: "#444", borderRadius: 12, padding: "8px 14px", maxWidth: "75%",
-              whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "1.05rem"
-            }}>
-              <strong>{msg.sender}:</strong> {msg.text}
-            </div>
-          </div>
-        ))}
-        {isLoading && <div style={{ color: "#aaa", fontStyle: "italic" }}>AI正在思考...</div>}
+    <div className="relative flex flex-col items-center min-h-screen bg-gradient-to-b from-orange-50 to-pink-50 dark:from-gray-900 dark:to-gray-950 transition-colors duration-300">
+      {/* Dark mode toggle */}
+      <button
+        className="fixed top-2 right-2 z-50 h-10 w-20 flex items-center justify-center rounded-xl bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-200 font-bold shadow"
+        onClick={() => {
+          document.documentElement.classList.toggle("dark");
+          localStorage.setItem(
+            "ai_healing_darkmode",
+            document.documentElement.classList.contains("dark") ? "true" : "false"
+          );
+        }}
+      >
+        {typeof window !== "undefined" && document.documentElement.classList.contains("dark")
+          ? "🌞 白天"
+          : "🌙 黑夜"}
+      </button>
+
+      {/* Title */}
+      <h1 className="text-2xl font-bold mt-10 mb-6 text-indigo-600 dark:text-indigo-200">
+        🌿 AI 心理疗愈对话 🌸
+      </h1>
+
+      {/* Entry form card */}
+      <div className="bg-white/90 dark:bg-gray-800 rounded-2xl shadow-2xl w-[96%] max-w-xl p-8 space-y-6">
+        <h2 className="text-xl font-semibold text-center text-gray-800 dark:text-gray-200">
+          欢迎加入体验
+        </h2>
+        <p className="text-gray-800 dark:text-gray-200">
+          您将被邀请体验一个以故事为核心的情绪疗愈AI（人工智能）。<br /><br />
+
+          AI会首先探索和了解您刚刚回忆的情绪困扰（大概需要3-5轮对话）；当沟通结束后，AI将为您定制一篇专属情感疗愈故事，并围绕故事展开一系列沟通和交流。<br /><br />
+
+          <strong>我们建议您在开始时可以尽量详细地与AI沟通事件概况和情绪感受。当提供更多信息时，您的疗愈体验会更好。</strong><br /><br />
+
+          请以您感到舒适的方式与AI互动。您所提供的所有信息将得到充分保护，并仅用于科研目的。
+        </p>
+
+
+        {/* Short Description */}
+        <div>
+          <label htmlFor="description" className="block font-medium mb-1 dark:text-gray-200">
+            体验规则简述
+          </label>
+          <textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 dark:text-gray-100 shadow-inner"
+            placeholder="请写下您对此次体验规则的理解"
+            disabled={loading}
+          />
+        </div>
+
+        {/* Error Message */}
+        {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+
+        {/* Continue Button */}
+        <button
+          onClick={handleNext}
+          disabled={loading}
+          className={`w-full py-3 text-lg rounded-xl font-semibold transition duration-200 ${
+            loading
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-indigo-500 hover:bg-indigo-600 text-white"
+          }`}
+        >
+          {loading ? "Processing..." : "开始体验"}
+        </button>
       </div>
-
-      {/* Input/controls */}
-      {step === "chat" && (
-        <>
-          <div style={{ display: "flex", width: "80%", maxWidth: 500 }}>
-            <input
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") handleSend(); }}
-              placeholder="请输入消息..."
-              style={{
-                flex: 1, padding: "10px", borderRadius: "12px", border: "1px solid #ddd",
-                boxShadow: "inset 0px 2px 4px rgba(0,0,0,0.1)"
-              }}
-              disabled={isLoading}
-            />
-            <button onClick={handleSend}
-              style={{
-                marginLeft: 16, padding: "10px 16px", borderRadius: 12, border: "none",
-                background: "#6A5ACD", color: "#fff", fontWeight: 500,
-                cursor: isLoading ? "not-allowed" : "pointer", opacity: isLoading ? 0.7 : 1
-              }}
-              disabled={isLoading}
-            >发送</button>
-          </div>
-          <button
-            style={{
-              marginTop: "1.5rem", padding: "12px 26px", borderRadius: "12px",
-              background: "#FFB6C1", color: "#fff", border: "none", fontWeight: 600,
-              fontSize: "1.08rem", cursor: "pointer", transition: "background 0.3s"
-            }}
-            onClick={handleFetchStory}
-            disabled={
-              isLoading || !chatHistory.some(m => m.sender === "用户")
-            }
-            title={!chatHistory.some(m => m.sender === "用户") ? "请先与AI互动一条再进入故事" : undefined}
-          >
-            下一步：AI讲故事
-          </button>
-        </>
-      )}
-
-      {step === "story" && (
-        <div style={{ color: "#6A5ACD", margin: "1rem 0" }}>
-          AI正在准备你的故事...
-        </div>
-      )}
-
-      {step === "reflection" && (
-        <>
-          <div style={{
-            color: "#6A5ACD", marginBottom: 8, fontWeight: 500, fontSize: "1.05rem"
-          }}>
-            当前已反思：{reflectionCount} 次，还需 {Math.max(MIN_REFLECTIONS - reflectionCount, 0)} 次
-          </div>
-          <div style={{ display: "flex", width: "80%", maxWidth: 500 }}>
-            <input
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") handleSend(); }}
-              placeholder="请分享你的反思感受..."
-              style={{
-                flex: 1, padding: "10px", borderRadius: "12px", border: "1px solid #ddd",
-                boxShadow: "inset 0px 2px 4px rgba(0,0,0,0.1)"
-              }}
-              disabled={isLoading}
-            />
-            <button onClick={handleSend}
-              style={{
-                marginLeft: 16, padding: "10px 16px", borderRadius: 12, border: "none",
-                background: "#6A5ACD", color: "#fff", fontWeight: 500,
-                cursor: isLoading ? "not-allowed" : "pointer", opacity: isLoading ? 0.7 : 1
-              }}
-              disabled={isLoading}
-            >发送</button>
-          </div>
-          {reflectionCount >= MIN_REFLECTIONS && !code && (
-            <button
-              onClick={handleGetCode}
-              style={{
-                marginTop: "1.5rem", padding: "14px 28px", borderRadius: "14px",
-                background: "#28b76b", color: "#fff", fontWeight: 600, fontSize: "1.1rem",
-                border: "none", cursor: isLoading ? "not-allowed" : "pointer", opacity: isLoading ? 0.7 : 1,
-                transition: "background 0.3s"
-              }}
-              disabled={isLoading}
-            >
-              获取兑换码
-            </button>
-          )}
-        </>
-      )}
-
-      {step === "done" && (
-        <div style={{
-          marginTop: "2rem", padding: "18px 24px", background: "#fffbe5",
-          border: "2px dashed #28b76b", color: "#1d6434", fontSize: "1.15rem",
-          fontWeight: 700, borderRadius: "14px", textAlign: "center", letterSpacing: "2px"
-        }}>
-          你的兑换码：<span style={{ fontWeight: 900 }}>{code}</span>
-        </div>
-      )}
     </div>
   );
 }
